@@ -47,7 +47,11 @@ pub enum RpcMethod {
     GetNetwork,
     GetLatestLedger,
     GetHealth,
+    GetVersionInfo,
+    GetFeeStats,
     GetEvents,
+    GetLedgers,
+    GetLedgerEntries,
 }
 
 impl std::str::FromStr for RpcMethod {
@@ -58,9 +62,15 @@ impl std::str::FromStr for RpcMethod {
             "get-network" => Ok(RpcMethod::GetNetwork),
             "get-latest-ledger" => Ok(RpcMethod::GetLatestLedger),
             "get-health" => Ok(RpcMethod::GetHealth),
+            "get-version-info" => Ok(RpcMethod::GetVersionInfo),
+            "get-fee-stats" => Ok(RpcMethod::GetFeeStats),
             "get-events" => Ok(RpcMethod::GetEvents),
+            "get-ledgers" => Ok(RpcMethod::GetLedgers),
+            "get-ledger-entries" => Ok(RpcMethod::GetLedgerEntries),
             other => Err(format!(
-                "unsupported rpc method {other:?}: supported methods are: \"get-network\", \"get-latest-ledger\", \"get-health\", \"get-events\""
+                "unsupported rpc method {other:?}: supported methods are: \"get-network\", \
+                 \"get-latest-ledger\", \"get-health\", \"get-version-info\", \"get-fee-stats\", \
+                 \"get-events\", \"get-ledgers\", \"get-ledger-entries\""
             )),
         }
     }
@@ -613,6 +623,16 @@ pub struct DefaultRpcRunner<C: RpcClient> {
     client: C,
 }
 
+/// The named `params` object to send for a fixture: its validated
+/// `[request]` table, or an empty object when it has none.
+fn request_params(fixture: &RpcFixture) -> serde_json::Value {
+    fixture
+        .request
+        .clone()
+        .map(serde_json::Value::Object)
+        .unwrap_or_else(|| serde_json::Value::Object(Default::default()))
+}
+
 /// Summary reported when the endpoint says the fixture's RPC method does
 /// not exist (JSON-RPC `-32601`): the check is skipped rather than marked
 /// as an error, because an optional or unsupported method says nothing
@@ -638,13 +658,14 @@ impl<C: RpcClient + Sync> RpcRunner for DefaultRpcRunner<C> {
             RpcMethod::GetNetwork => self.client.get_network_raw().await,
             RpcMethod::GetLatestLedger => self.client.get_latest_ledger_raw().await,
             RpcMethod::GetHealth => self.client.get_health_raw().await,
-            RpcMethod::GetEvents => {
-                let params = fixture
-                    .request
-                    .clone()
-                    .map(serde_json::Value::Object)
-                    .unwrap_or_else(|| serde_json::Value::Object(Default::default()));
-                self.client.get_events_raw(params).await
+            RpcMethod::GetVersionInfo => self.client.get_version_info_raw().await,
+            RpcMethod::GetFeeStats => self.client.get_fee_stats_raw().await,
+            RpcMethod::GetEvents => self.client.get_events_raw(request_params(fixture)).await,
+            RpcMethod::GetLedgers => self.client.get_ledgers_raw(request_params(fixture)).await,
+            RpcMethod::GetLedgerEntries => {
+                self.client
+                    .get_ledger_entries_raw(request_params(fixture))
+                    .await
             }
         };
 
